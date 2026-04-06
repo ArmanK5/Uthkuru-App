@@ -134,7 +134,7 @@ class GameController < ApplicationController
         "al soberin"
       ]
     else
-      [target_word.to_s]
+      [ target_word.to_s ]
     end
   end
 
