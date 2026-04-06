@@ -12,33 +12,47 @@
   let recorder, chunks = [], stopTimer = null
   let roundActive = false
 
-  const startBtn = document.getElementById('start')
-  const mic = document.getElementById('mic')
-  const status = document.getElementById('status')
-  const target = document.getElementById('target')
-  const transcriptEl = document.getElementById('transcript')
-  const resultEl = document.getElementById('result')
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content
 
-  startBtn.addEventListener('click', startRound)
+  const startBtn = document.getElementById("start")
+  const mic = document.getElementById("mic")
+  const status = document.getElementById("status")
+  const target = document.getElementById("target")
+  const transcriptEl = document.getElementById("transcript")
+  const resultEl = document.getElementById("result")
+
+  startBtn.addEventListener("click", startRound)
 
   async function startRound() {
-    transcriptEl.textContent = ''
-    resultEl.textContent = ''
-    status.textContent = 'Loading round...'
+    transcriptEl.textContent = ""
+    resultEl.textContent = ""
+    status.textContent = "Loading round..."
 
-    const res = await fetch('/round', { method: 'POST' })
-    const data = await res.json()
+    try {
+      const res = await fetch("/round", {
+        method: "POST",
+        headers: {
+          "X-CSRF-Token": csrfToken
+        }
+      })
 
-    target.textContent = 'Target word: ' + data.target_word
-    status.textContent = 'Hold the mic and recite an ayah'
-    mic.disabled = false
-    roundActive = true
+      const data = await res.json()
+
+      target.textContent = "Target word: " + data.target_word
+      status.textContent = "Hold the mic and recite an ayah"
+      mic.disabled = false
+      roundActive = true
+    } catch (error) {
+      status.textContent = "Failed to start round"
+      resultEl.textContent = "❌ " + error.message
+    }
   }
 
   async function startRec() {
     if (!roundActive) return
 
     chunks = []
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     recorder = new MediaRecorder(stream)
 
@@ -46,43 +60,54 @@
     recorder.onstop = sendAudio
 
     recorder.start()
-    status.textContent = '🔴 Recording...'
+    status.textContent = "🔴 Recording..."
 
     stopTimer = setTimeout(() => {
-      if (recorder && recorder.state === 'recording') stopRec()
+      if (recorder && recorder.state === "recording") stopRec()
     }, 8000)
   }
 
   function stopRec() {
-    if (!recorder || recorder.state !== 'recording') return
+    if (!recorder || recorder.state !== "recording") return
     clearTimeout(stopTimer)
     recorder.stop()
-    status.textContent = '⏳ Checking answer...'
+    status.textContent = "⏳ Checking answer..."
   }
 
   async function sendAudio() {
-    const blob = new Blob(chunks, { type: 'audio/webm' })
-    const form = new FormData()
-    form.append('audio', blob, 'answer.webm')
+    try {
+      const blob = new Blob(chunks, { type: "audio/webm" })
+      const form = new FormData()
+      form.append("audio", blob, "answer.webm")
 
-    const res = await fetch('/answer', { method: 'POST', body: form })
-    const data = await res.json()
+      const res = await fetch("/answer", {
+        method: "POST",
+        headers: {
+          "X-CSRF-Token": csrfToken
+        },
+        body: form
+      })
 
-    transcriptEl.textContent = 'Transcript: ' + (data.transcript || '—')
+      const data = await res.json()
 
-    if (data.correct) {
-      resultEl.textContent = `✅ Correct — ${data.verse_key}`
-    } else {
-      resultEl.textContent = `❌ Incorrect${data.reason ? ' — ' + data.reason : ''}`
+      transcriptEl.textContent = "Transcript: " + (data.transcript || "—")
+
+      if (data.correct) {
+        resultEl.textContent = "✅ Correct — " + data.verse_key
+      } else {
+        resultEl.textContent = "❌ Incorrect — " + (data.reason || "No match")
+      }
+    } catch (error) {
+      resultEl.textContent = "❌ Error — " + error.message
     }
 
-    status.textContent = 'Press Start Round'
+    status.textContent = "Press Start Round"
     mic.disabled = true
     roundActive = false
   }
 
-  mic.addEventListener('pointerdown', startRec)
-  mic.addEventListener('pointerup', stopRec)
-  mic.addEventListener('pointerleave', stopRec)
-  mic.addEventListener('pointercancel', stopRec)
+  mic.addEventListener("pointerdown", startRec)
+  mic.addEventListener("pointerup", stopRec)
+  mic.addEventListener("pointerleave", stopRec)
+  mic.addEventListener("pointercancel", stopRec)
 </script>
