@@ -1,0 +1,48 @@
+<h1>اذكرو</h1>
+<p id="status">Press and hold to speak</p>
+<p id="transcript"></p>
+<p id="verse"></p>
+
+<button id="mic">🎙 Hold to Speak</button>
+
+<script>
+  let recorder, chunks = []
+  const mic = document.getElementById('mic')
+  const status = document.getElementById('status')
+
+  async function startRec() {
+    chunks = []
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    recorder = new MediaRecorder(stream)
+    recorder.ondataavailable = e => chunks.push(e.data)
+    recorder.onstop = sendAudio
+    recorder.start()
+    status.textContent = '🔴 Recording...'
+  }
+
+  function stopRec() {
+    recorder.stop()
+    status.textContent = '⏳ Processing...'
+  }
+
+  async function sendAudio() {
+    const blob = new Blob(chunks, { type: 'audio/webm' })
+    const form = new FormData()
+    form.append('audio', blob, 'answer.webm')
+
+    const res = await fetch('/transcribe', { method: 'POST', body: form })
+    const data = await res.json()
+
+    document.getElementById('transcript').textContent = 'Transcript: ' + data.transcript
+    document.getElementById('verse').textContent = data.verse_key
+      ? '✓ Found: ' + data.verse_key
+      : '✗ No matching ayah found'
+
+    status.textContent = 'Press and hold to speak'
+  }
+
+  mic.addEventListener('mousedown', startRec)
+  mic.addEventListener('mouseup', stopRec)
+  mic.addEventListener('touchstart', e => { e.preventDefault(); startRec() })
+  mic.addEventListener('touchend', stopRec)
+</script>

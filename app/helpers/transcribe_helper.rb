@@ -1,0 +1,2 @@
+module TranscribeHelper
+end
