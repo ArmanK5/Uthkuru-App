@@ -1,28 +1,63 @@
 <h1>اذكرو</h1>
-<p id="status">Press and hold to speak</p>
-<p id="transcript"></p>
-<p id="verse"></p>
 
-<button id="mic">🎙 Hold to Speak</button>
+<p id="target">Target word: —</p>
+<p id="status">Press Start Round</p>
+<p id="transcript"></p>
+<p id="result"></p>
+
+<button id="start">Start Round</button>
+<button id="mic" disabled>🎙 Hold to Speak</button>
 
 <script>
-  let recorder, chunks = []
+  let recorder, chunks = [], stopTimer = null
+  let roundActive = false
+
+  const startBtn = document.getElementById('start')
   const mic = document.getElementById('mic')
   const status = document.getElementById('status')
+  const target = document.getElementById('target')
+  const transcriptEl = document.getElementById('transcript')
+  const resultEl = document.getElementById('result')
+
+  startBtn.addEventListener('click', startRound)
+
+  async function startRound() {
+    transcriptEl.textContent = ''
+    resultEl.textContent = ''
+    status.textContent = 'Loading round...'
+
+    const res = await fetch('/round', { method: 'POST' })
+    const data = await res.json()
+
+    target.textContent = 'Target word: ' + data.target_word
+    status.textContent = 'Hold the mic and recite an ayah'
+    mic.disabled = false
+    roundActive = true
+  }
 
   async function startRec() {
+    if (!roundActive) return
+
     chunks = []
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     recorder = new MediaRecorder(stream)
+
     recorder.ondataavailable = e => chunks.push(e.data)
     recorder.onstop = sendAudio
+
     recorder.start()
     status.textContent = '🔴 Recording...'
+
+    stopTimer = setTimeout(() => {
+      if (recorder && recorder.state === 'recording') stopRec()
+    }, 8000)
   }
 
   function stopRec() {
+    if (!recorder || recorder.state !== 'recording') return
+    clearTimeout(stopTimer)
     recorder.stop()
-    status.textContent = '⏳ Processing...'
+    status.textContent = '⏳ Checking answer...'
   }
 
   async function sendAudio() {
@@ -30,19 +65,24 @@
     const form = new FormData()
     form.append('audio', blob, 'answer.webm')
 
-    const res = await fetch('/transcribe', { method: 'POST', body: form })
+    const res = await fetch('/answer', { method: 'POST', body: form })
     const data = await res.json()
 
-    document.getElementById('transcript').textContent = 'Transcript: ' + data.transcript
-    document.getElementById('verse').textContent = data.verse_key
-      ? '✓ Found: ' + data.verse_key
-      : '✗ No matching ayah found'
+    transcriptEl.textContent = 'Transcript: ' + (data.transcript || '—')
 
-    status.textContent = 'Press and hold to speak'
+    if (data.correct) {
+      resultEl.textContent = `✅ Correct — ${data.verse_key}`
+    } else {
+      resultEl.textContent = `❌ Incorrect${data.reason ? ' — ' + data.reason : ''}`
+    }
+
+    status.textContent = 'Press Start Round'
+    mic.disabled = true
+    roundActive = false
   }
 
-  mic.addEventListener('mousedown', startRec)
-  mic.addEventListener('mouseup', stopRec)
-  mic.addEventListener('touchstart', e => { e.preventDefault(); startRec() })
-  mic.addEventListener('touchend', stopRec)
+  mic.addEventListener('pointerdown', startRec)
+  mic.addEventListener('pointerup', stopRec)
+  mic.addEventListener('pointerleave', stopRec)
+  mic.addEventListener('pointercancel', stopRec)
 </script>
