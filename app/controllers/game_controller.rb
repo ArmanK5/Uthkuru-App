@@ -121,13 +121,13 @@ class GameController < ApplicationController
   def normalize_arabic(text)
     text.to_s
         .unicode_normalize(:nfkc)
-        .gsub(/[\u064B-\u065F\u0670]/, '') # harakat
-        .tr('أإآٱ', 'ا')
-        .tr('ى', 'ي')
-        .tr('ؤ', 'و')
-        .tr('ئ', 'ي')
-        .gsub(/[^\p{Arabic}\s]/, '')
-        .squeeze(' ')
+        .gsub(/[\u064B-\u065F\u0670]/, "") # harakat
+        .tr("أإآٱ", "ا")
+        .tr("ى", "ي")
+        .tr("ؤ", "و")
+        .tr("ئ", "ي")
+        .gsub(/[^\p{Arabic}\s]/, "")
+        .squeeze(" ")
         .strip
   end
 end
